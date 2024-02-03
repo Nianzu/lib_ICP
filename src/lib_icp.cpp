@@ -12,6 +12,7 @@ std::tuple<int, Eigen::MatrixXd> LibICP::icp(Eigen::MatrixXd A, Eigen::MatrixXd 
     // Check that these point clouds are good
     if (A.cols() != B.cols())
     {
+        printf("A.cols() = %ld != B.cols() = %lib_icp\n",A.cols(),B.cols());
         Eigen::MatrixXd output;
         return std::tuple<int, Eigen::MatrixXd> {-1,output};
     }
