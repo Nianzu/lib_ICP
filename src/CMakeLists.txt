@@ -1,0 +1,1 @@
+add_library(lib_icp lib_icp.cpp)

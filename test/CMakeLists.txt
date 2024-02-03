@@ -1,0 +1,2 @@
+add_executable(test_lib_icp test_lib_icp.cpp)
+target_link_libraries(test_lib_icp lib_icp)
