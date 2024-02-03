@@ -27,9 +27,9 @@ std::tuple<int, Eigen::MatrixXd> LibICP::icp(Eigen::MatrixXd A, Eigen::MatrixXd 
     {
         auto[distances, indicies] = nearest_neighbor(src,dst);
         Eigen::MatrixXd dst_mapped(dst.rows(),indicies.size());
-        for (int index : indicies)
+        for (int j = 0; j < indicies.size(); j++)
         {
-            dst_mapped.col(i) = dst.col(index);
+            dst_mapped.col(j) = dst.col(indicies[j]);
         }
         Eigen::MatrixXd T = best_fit_transform(src,dst_mapped);
 
@@ -61,8 +61,28 @@ std::tuple<int, Eigen::MatrixXd> LibICP::icp(Eigen::MatrixXd A, Eigen::MatrixXd 
 
 std::tuple<std::vector<double>, std::vector<int>> LibICP::nearest_neighbor(Eigen::MatrixXd src, Eigen::MatrixXd dst)
 {
-    std::tuple<std::vector<double>, std::vector<int>> output;
-    return output;
+
+    // FLANN expects row-major input, but Eigen uses column-major
+    Eigen::MatrixXd src_transposed = src.transpose();
+    Eigen::MatrixXd dst_transposed = dst.transpose();
+
+    // FLANN also uses its own matrix type
+    flann::Matrix<double> dataset(dst_transposed.data(),dst_transposed.rows(),dst_transposed.cols());
+    flann::Matrix<double> query(src_transposed.data(),src_transposed.rows(),src_transposed.cols());
+    
+    // Create FLANN index, using L2 norm and KD Trees
+    flann::Index<flann::L2<double>> index(dataset, flann::KDTreeIndexParams(1));
+
+    // Prepare for calculation
+    std::vector<int> indices_vec(query.rows);
+    std::vector<double> dists_vec(query.rows);
+    flann::Matrix<int> indices(indices_vec.data(), query.rows, 1);
+    flann::Matrix<double> dists(dists_vec.data(), query.rows, 1);
+
+    // Run FLANN
+    index.knnSearch(query, indices, dists, 1, flann::SearchParams(128));
+
+    return std::tuple<std::vector<double>, std::vector<int>> {dists_vec, indices_vec};
 }
 
 Eigen::MatrixXd LibICP::best_fit_transform(Eigen::MatrixXd A, Eigen::MatrixXd B)
