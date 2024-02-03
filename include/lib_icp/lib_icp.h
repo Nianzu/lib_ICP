@@ -10,10 +10,10 @@ class LibICP
 
         // Constructor
         LibICP(); 
-        Eigen::MatrixXd icp(Eigen::MatrixXd A, Eigen::MatrixXd B, int max_iterations, double tolerance);
+        std::tuple<int, Eigen::MatrixXd> icp(Eigen::MatrixXd A, Eigen::MatrixXd B, int max_iterations, double tolerance);
         
     private:
-        std::tuple<double, int> nearest_neighbor(Eigen::MatrixXd src, Eigen::MatrixXd dst);
+        std::tuple<std::vector<double>, std::vector<int>> nearest_neighbor(Eigen::MatrixXd src, Eigen::MatrixXd dst);
         Eigen::MatrixXd best_fit_transform(Eigen::MatrixXd A, Eigen::MatrixXd B);
 };
 
