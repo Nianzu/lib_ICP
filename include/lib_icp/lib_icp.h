@@ -3,6 +3,7 @@
 
 #include <Eigen/Dense>
 #include <tuple>
+#include <flann/flann.hpp>
 
 class LibICP 
 {

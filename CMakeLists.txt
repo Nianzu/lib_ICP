@@ -6,6 +6,7 @@ option(BUILD_TESTS "Build the test suite" ON)
 
 include_directories(include/)
 include_directories(extern/eigen/)
+include_directories(extern/flann/src/cpp)
 
 add_subdirectory(src)
 
