@@ -37,7 +37,7 @@ std::tuple<int, Eigen::MatrixXd> LibICP::icp(Eigen::MatrixXd A, Eigen::MatrixXd 
         src = T*src;
 
         // Check the error
-        double&& sum = 0;
+        double sum = 0;
         for (double dist : distances)
         {
             sum += dist;
@@ -46,7 +46,7 @@ std::tuple<int, Eigen::MatrixXd> LibICP::icp(Eigen::MatrixXd A, Eigen::MatrixXd 
         double change_error = prev_error - mean_error;
 
         // Easier than dealing with Abs
-        if (change_error < tolerance && change_error > -tolerance)
+        if (std::abs(change_error) < tolerance)
         {
             break;
         }
@@ -87,6 +87,38 @@ std::tuple<std::vector<double>, std::vector<int>> LibICP::nearest_neighbor(Eigen
 
 Eigen::MatrixXd LibICP::best_fit_transform(Eigen::MatrixXd A, Eigen::MatrixXd B)
 {
-    Eigen::MatrixXd output;
-    return output;
+    // Get the centroids
+    // https://stackoverflow.com/questions/43196545/eigen-class-to-take-mean-of-each-row-of-matrix-compute-centroid-of-the-column-v
+    Eigen::VectorXd centroid_A = A.rowwise().mean();
+    Eigen::VectorXd centroid_B = B.rowwise().mean();
+
+    // Translate the points to their centroids
+    Eigen::MatrixXd AA = A.colwise() - centroid_A;
+    Eigen::MatrixXd BB = B.colwise() - centroid_B;
+
+    // Get the rotation matrix from SVD
+    // https://eigen.tuxfamily.org/dox/classEigen_1_1JacobiSVD.html
+    Eigen::MatrixXd H = AA.transpose() * BB;
+    Eigen::JacobiSVD<Eigen::MatrixXd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd(H);
+    Eigen::MatrixXd U = svd.matrixU();
+    Eigen::MatrixXd Vt = svd.matrixV();
+    Eigen::MatrixXd R = Vt.transpose() * U.transpose();
+
+    // Reflection Case
+    if (R.determinant() < 0)
+    {
+        Vt.row(Vt.rows() - 1) *= -1;
+        R = Vt.transpose() * U.transpose();
+    }
+
+    // Get the translation matrix
+    Eigen::VectorXd t = centroid_B.transpose() - (R * centroid_A.transpose());
+
+    // Compute the homogeneous transformation matrix
+    int dim = R.rows();
+    Eigen::MatrixXd T = Eigen::MatrixXd::Identity(dim+1,dim+1);
+    T.block(0,0,dim,dim) = R;
+    T.block(0,dim,dim,1) = t;
+
+    return T;
 }
