@@ -10,3 +10,8 @@ The design of this library is based on the python implementation [here](https://
 ```
 sudo apt install libflann-dev
 ```
+
+# ToDo
+
+* Return if ICP succeeded
+* Commenting pass
