@@ -9,10 +9,10 @@ LibICP::LibICP()
 std::tuple<int, Eigen::MatrixXd> LibICP::icp(Eigen::MatrixXd A, Eigen::MatrixXd B, int max_iterations, double tolerance)
 {
 
-    // Check that these point clouds are good
-    if (A.cols() != B.cols())
+    // Check that these point clouds are of the same dimension
+    if (A.rows() != B.rows())
     {
-        printf("A.cols() = %ld != B.cols() = %lib_icp\n",A.cols(),B.cols());
+        printf("A.rows() = %ld != B.rows() = %lib_icp\n",A.cols(),B.cols());
         Eigen::MatrixXd output;
         return std::tuple<int, Eigen::MatrixXd> {-1,output};
     }
@@ -23,16 +23,26 @@ std::tuple<int, Eigen::MatrixXd> LibICP::icp(Eigen::MatrixXd A, Eigen::MatrixXd 
     Eigen::MatrixXd dst = B.colwise().homogeneous();
 
     double prev_error = 0;
-
-    for (int i = 0; i < max_iterations; i++)
+    int iterations;
+    for (iterations = 0; iterations < max_iterations; iterations++)
     {
-        auto[distances, indicies] = nearest_neighbor(src,dst);
+        auto[distances, indicies] = nearest_neighbor(src.topRows(src.rows()-1),dst.topRows(dst.rows()-1));
+        
+        std::cout << "Indicies:" << std::endl;
+        for (int index : indicies)
+        {
+            printf("%d\n",index);
+        }
         Eigen::MatrixXd dst_mapped(dst.rows(),indicies.size());
         for (int j = 0; j < indicies.size(); j++)
         {
             dst_mapped.col(j) = dst.col(indicies[j]);
         }
-        Eigen::MatrixXd T = best_fit_transform(src,dst_mapped);
+        std::cout << "dst_mapped:" << std::endl;
+        std::cout << dst_mapped << std::endl;
+        Eigen::MatrixXd T = best_fit_transform(src.topRows(src.rows()-1),dst_mapped.topRows(dst_mapped.rows()-1));
+
+        std::cout << "Transformation Matrix:\n" << T << std::endl;
 
         // Update src
         src = T*src;
@@ -45,8 +55,9 @@ std::tuple<int, Eigen::MatrixXd> LibICP::icp(Eigen::MatrixXd A, Eigen::MatrixXd 
         }
         double mean_error = sum/distances.size();
         double change_error = prev_error - mean_error;
+        std::cout << "mean_error: " << mean_error << std::endl << "change_error: " <<change_error <<std::endl;
 
-        // Easier than dealing with Abs
+        // Check if we are within tolerance
         if (std::abs(change_error) < tolerance)
         {
             break;
@@ -54,18 +65,20 @@ std::tuple<int, Eigen::MatrixXd> LibICP::icp(Eigen::MatrixXd A, Eigen::MatrixXd 
         prev_error = mean_error;
     }
 
-    Eigen::MatrixXd T = best_fit_transform(A,src);
+    Eigen::MatrixXd T = best_fit_transform(A,src.topRows(src.rows()-1));
 
-    return std::tuple<int, Eigen::MatrixXd> {0,T};
+    return std::tuple<int, Eigen::MatrixXd> {iterations,T};
 }
 
 
 std::tuple<std::vector<double>, std::vector<int>> LibICP::nearest_neighbor(Eigen::MatrixXd src, Eigen::MatrixXd dst)
 {
-
     // FLANN expects row-major input, but Eigen uses column-major
     Eigen::MatrixXd src_transposed = src.transpose();
     Eigen::MatrixXd dst_transposed = dst.transpose();
+
+    std::cout << "src_transposed:\n" << src_transposed << std::endl;
+    std::cout << "dst_transposed:\n" << dst_transposed << std::endl;
 
     // FLANN also uses its own matrix type
     flann::Matrix<double> dataset(dst_transposed.data(),dst_transposed.rows(),dst_transposed.cols());
@@ -73,7 +86,8 @@ std::tuple<std::vector<double>, std::vector<int>> LibICP::nearest_neighbor(Eigen
     
     // Create FLANN index, using L2 norm and KD Trees
     flann::Index<flann::L2<double>> index(dataset, flann::KDTreeIndexParams(1));
-
+    index.buildIndex();
+    
     // Prepare for calculation
     std::vector<int> indices_vec(query.rows);
     std::vector<double> dists_vec(query.rows);
@@ -97,20 +111,29 @@ Eigen::MatrixXd LibICP::best_fit_transform(Eigen::MatrixXd A, Eigen::MatrixXd B)
     Eigen::MatrixXd AA = A.colwise() - centroid_A;
     Eigen::MatrixXd BB = B.colwise() - centroid_B;
 
+
+    std::cout << "A_translated:\n" << AA << std::endl;
+    std::cout << "B_translated:\n" << BB << std::endl;
+
     // Get the rotation matrix from SVD
     // https://eigen.tuxfamily.org/dox/classEigen_1_1JacobiSVD.html
-    Eigen::MatrixXd H = AA.transpose() * BB;
-    Eigen::JacobiSVD<Eigen::MatrixXd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd(H);
+    Eigen::MatrixXd H = AA * BB.transpose(); // Covariance matrix
+    Eigen::JacobiSVD<Eigen::MatrixXd> svd(H,Eigen::ComputeFullU | Eigen::ComputeFullV);
     Eigen::MatrixXd U = svd.matrixU();
-    Eigen::MatrixXd Vt = svd.matrixV();
-    Eigen::MatrixXd R = Vt.transpose() * U.transpose();
+    Eigen::MatrixXd V = svd.matrixV();
 
-    // Reflection Case
-    if (R.determinant() < 0)
-    {
-        Vt.row(Vt.rows() - 1) *= -1;
-        R = Vt.transpose() * U.transpose();
+    // Ensure a right-handed coordinate system and correct for reflection if necessary
+    Eigen::MatrixXd VU = V * U.transpose();
+    double det = VU.determinant();
+    Eigen::MatrixXd I = Eigen::MatrixXd::Identity(A.rows(), A.rows());
+    if(det < 0) {
+        I(A.rows() - 1, A.rows() - 1) = det; // Adjust the sign in the diagonal matrix for reflection
     }
+
+    // Compute the rotation matrix R
+    Eigen::MatrixXd R = V * I * U.transpose();
+
+    std::cout << "Rotation Matrix:\n" << R << std::endl;
 
     // Get the translation matrix
     Eigen::VectorXd t = centroid_B.transpose() - (R * centroid_A.transpose());
