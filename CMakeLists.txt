@@ -6,6 +6,11 @@ option(BUILD_TESTS "Build the test suite" ON)
 
 include_directories(include/)
 include_directories(extern/eigen/)
+
+# Disable FLANN's tests and examples
+set(BUILD_EXAMPLES OFF CACHE BOOL "Do not build FLANN examples" FORCE)
+set(BUILD_TESTS OFF CACHE BOOL "Do not build FLANN tests" FORCE)
+
 add_subdirectory(extern/flann/)
 
 add_subdirectory(src)
