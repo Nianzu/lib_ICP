@@ -1,6 +1,6 @@
 #include <lib_icp/lib_icp.h>
 
-std::tuple<int, Eigen::MatrixXd> LibICP::icp(Eigen::MatrixXd src, Eigen::MatrixXd dst, int max_iterations, double tolerance)
+std::tuple<int, Eigen::MatrixXd> LibICP::icp(const Eigen::MatrixXd& src, const Eigen::MatrixXd& dst, int max_iterations, double tolerance)
 {
 
     // Check that these point clouds are of the same dimension
@@ -54,7 +54,7 @@ std::tuple<int, Eigen::MatrixXd> LibICP::icp(Eigen::MatrixXd src, Eigen::MatrixX
 }
 
 
-std::tuple<std::vector<double>, std::vector<int>> LibICP::nearest_neighbor(Eigen::MatrixXd src, Eigen::MatrixXd dst)
+std::tuple<std::vector<double>, std::vector<int>> LibICP::nearest_neighbor(const Eigen::MatrixXd& src, const Eigen::MatrixXd& dst)
 {
     // FLANN expects row-major input, but Eigen uses column-major
     Eigen::MatrixXd src_transposed = src.transpose();
@@ -80,7 +80,7 @@ std::tuple<std::vector<double>, std::vector<int>> LibICP::nearest_neighbor(Eigen
     return std::tuple<std::vector<double>, std::vector<int>> {dists_vec, indices_vec};
 }
 
-Eigen::MatrixXd LibICP::best_fit_transform(Eigen::MatrixXd src, Eigen::MatrixXd dst)
+Eigen::MatrixXd LibICP::best_fit_transform(const Eigen::MatrixXd& src, const Eigen::MatrixXd& dst)
 {
     // Get the centroids
     // https://stackoverflow.com/questions/43196545/eigen-class-to-take-mean-of-each-row-of-matrix-compute-centroid-of-the-column-v
