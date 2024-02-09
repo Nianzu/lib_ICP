@@ -1,11 +1,5 @@
 #include <lib_icp/lib_icp.h>
 
-LibICP::LibICP()
-{
-
-}
-
-
 std::tuple<int, Eigen::MatrixXd> LibICP::icp(Eigen::MatrixXd src, Eigen::MatrixXd dst, int max_iterations, double tolerance)
 {
 

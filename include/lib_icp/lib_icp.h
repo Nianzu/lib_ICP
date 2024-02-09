@@ -9,8 +9,6 @@ class LibICP
 {
     public:
 
-        // Constructor
-        LibICP(); 
         std::tuple<int, Eigen::MatrixXd> icp(Eigen::MatrixXd A, Eigen::MatrixXd B, int max_iterations, double tolerance);
         
     private:
