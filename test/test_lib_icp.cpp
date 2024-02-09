@@ -13,8 +13,8 @@ int main(int argc, char* argv[])
     Eigen::MatrixXd A = Eigen::MatrixXd::Random(3,num_points);
     
     // Create a rotation matrix
-    const double max_theta = 10;
-    const double min_theta = -10;
+    const double max_theta = 0.2;
+    const double min_theta = -0.2;
     // https://www.geeksforgeeks.org/generate-random-double-numbers-in-cpp/#
     double yaw = min_theta + (max_theta - min_theta) * (double)std::rand() / RAND_MAX;
     double pitch = min_theta + (max_theta - min_theta) * (double)std::rand() / RAND_MAX;
@@ -28,8 +28,8 @@ int main(int argc, char* argv[])
     Eigen::Matrix3d rotation_matrix = q.matrix();
 
     // Create a translation vector
-    const double max_translation = 10;
-    const double min_translation = -10;
+    const double max_translation = 1;
+    const double min_translation = -1;
     double x = min_translation + (max_translation - min_translation) * (double)std::rand() / RAND_MAX;
     double y = min_translation + (max_translation - min_translation) * (double)std::rand() / RAND_MAX;
     double z = min_translation + (max_translation - min_translation) * (double)std::rand() / RAND_MAX;
