@@ -6,11 +6,11 @@ LibICP::LibICP()
 }
 
 
-std::tuple<int, Eigen::MatrixXd> LibICP::icp(Eigen::MatrixXd A, Eigen::MatrixXd B, int max_iterations, double tolerance)
+std::tuple<int, Eigen::MatrixXd> LibICP::icp(Eigen::MatrixXd src, Eigen::MatrixXd dst, int max_iterations, double tolerance)
 {
 
     // Check that these point clouds are of the same dimension
-    if (A.rows() != B.rows())
+    if (src.rows() != dst.rows())
     {
         Eigen::MatrixXd output;
         return std::tuple<int, Eigen::MatrixXd> {-1,output};
@@ -18,24 +18,24 @@ std::tuple<int, Eigen::MatrixXd> LibICP::icp(Eigen::MatrixXd A, Eigen::MatrixXd 
 
     // Transform to homogenous Matrix
     // https://stackoverflow.com/questions/16280218/convert-a-vector-of-3d-point-to-homogeneous-representation-in-eigen
-    Eigen::MatrixXd src = A.colwise().homogeneous();
-    Eigen::MatrixXd dst = B.colwise().homogeneous();
+    Eigen::MatrixXd src_H = src.colwise().homogeneous();
+    Eigen::MatrixXd dst_H = dst.colwise().homogeneous();
 
     double prev_error = 0;
     int iterations;
     for (iterations = 0; iterations < max_iterations; iterations++)
     {
-        auto[distances, indicies] = nearest_neighbor(src.topRows(src.rows()-1),dst.topRows(dst.rows()-1));
+        auto[distances, indicies] = nearest_neighbor(src_H.topRows(src_H.rows()-1),dst_H.topRows(dst_H.rows()-1));
         
-        Eigen::MatrixXd dst_mapped(dst.rows(),indicies.size());
+        Eigen::MatrixXd dst_mapped(dst_H.rows(),indicies.size());
         for (int j = 0; j < indicies.size(); j++)
         {
-            dst_mapped.col(j) = dst.col(indicies[j]);
+            dst_mapped.col(j) = dst_H.col(indicies[j]);
         }
-        Eigen::MatrixXd T = best_fit_transform(src.topRows(src.rows()-1),dst_mapped.topRows(dst_mapped.rows()-1));
+        Eigen::MatrixXd T = best_fit_transform(src_H.topRows(src_H.rows()-1),dst_mapped.topRows(dst_mapped.rows()-1));
 
         // Update src
-        src = T*src;
+        src_H = T*src_H;
 
         // Check the error
         double sum = 0;
@@ -54,7 +54,7 @@ std::tuple<int, Eigen::MatrixXd> LibICP::icp(Eigen::MatrixXd A, Eigen::MatrixXd 
         prev_error = mean_error;
     }
 
-    Eigen::MatrixXd T = best_fit_transform(A,src.topRows(src.rows()-1));
+    Eigen::MatrixXd T = best_fit_transform(src,src_H.topRows(src_H.rows()-1));
 
     return std::tuple<int, Eigen::MatrixXd> {iterations,T};
 }
@@ -86,20 +86,20 @@ std::tuple<std::vector<double>, std::vector<int>> LibICP::nearest_neighbor(Eigen
     return std::tuple<std::vector<double>, std::vector<int>> {dists_vec, indices_vec};
 }
 
-Eigen::MatrixXd LibICP::best_fit_transform(Eigen::MatrixXd A, Eigen::MatrixXd B)
+Eigen::MatrixXd LibICP::best_fit_transform(Eigen::MatrixXd src, Eigen::MatrixXd dst)
 {
     // Get the centroids
     // https://stackoverflow.com/questions/43196545/eigen-class-to-take-mean-of-each-row-of-matrix-compute-centroid-of-the-column-v
-    Eigen::VectorXd centroid_A = A.rowwise().mean();
-    Eigen::VectorXd centroid_B = B.rowwise().mean();
+    Eigen::VectorXd centroid_src = src.rowwise().mean();
+    Eigen::VectorXd centroid_dst = dst.rowwise().mean();
 
     // Translate the points to their centroids
-    Eigen::MatrixXd AA = A.colwise() - centroid_A;
-    Eigen::MatrixXd BB = B.colwise() - centroid_B;
+    Eigen::MatrixXd src_translated = src.colwise() - centroid_src;
+    Eigen::MatrixXd dst_translated = dst.colwise() - centroid_dst;
 
     // Get the rotation matrix from SVD
     // https://eigen.tuxfamily.org/dox/classEigen_1_1JacobiSVD.html
-    Eigen::MatrixXd H = AA * BB.transpose(); // Covariance matrix
+    Eigen::MatrixXd H = src_translated * dst_translated.transpose(); // Covariance matrix
     Eigen::JacobiSVD<Eigen::MatrixXd> svd(H,Eigen::ComputeFullU | Eigen::ComputeFullV);
     Eigen::MatrixXd U = svd.matrixU();
     Eigen::MatrixXd V = svd.matrixV();
@@ -107,16 +107,16 @@ Eigen::MatrixXd LibICP::best_fit_transform(Eigen::MatrixXd A, Eigen::MatrixXd B)
     // Ensure a right-handed coordinate system and correct for reflection if necessary
     Eigen::MatrixXd VU = V * U.transpose();
     double det = VU.determinant();
-    Eigen::MatrixXd I = Eigen::MatrixXd::Identity(A.rows(), A.rows());
+    Eigen::MatrixXd I = Eigen::MatrixXd::Identity(src.rows(), src.rows());
     if(det < 0) {
-        I(A.rows() - 1, A.rows() - 1) = det; // Adjust the sign in the diagonal matrix for reflection
+        I(src.rows() - 1, src.rows() - 1) = det; // Adjust the sign in the diagonal matrix for reflection
     }
 
     // Compute the rotation matrix R
     Eigen::MatrixXd R = V * I * U.transpose();
 
     // Get the translation matrix
-    Eigen::VectorXd t = centroid_B.transpose() - (R * centroid_A.transpose());
+    Eigen::VectorXd t = centroid_dst.transpose() - (R * centroid_src.transpose());
 
     // Compute the homogeneous transformation matrix
     int dim = R.rows();
